@@ -46,9 +46,6 @@ credentials/
 *.swp
 *.swo
 
-# Project specific
-app/cache/
-
 # OS specific
 .DS_Store
 Thumbs.db
