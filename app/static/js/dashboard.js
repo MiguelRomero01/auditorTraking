@@ -58,6 +58,33 @@ document.addEventListener("DOMContentLoaded", function () {
     return s;
   }
 
+  // --- Circular Progress Helper ---
+  function getProgressRing(pct, size = 60, stroke = 6) {
+    const radius = (size - stroke) / 2;
+    const circumference = radius * 2 * Math.PI;
+    const offset = circumference - (Math.min(pct, 100) / 100) * circumference;
+    
+    // Color based on percentage
+    let color = "#10b981"; // green
+    if (pct < 50) color = "#ef4444"; // red
+    else if (pct < 80) color = "#f59e0b"; // yellow
+    
+    return `
+      <div class="progress-ring-wrap" style="width:${size}px; height:${size}px;">
+        <svg width="${size}" height="${size}">
+          <circle class="ring-bg" cx="${size/2}" cy="${size/2}" r="${radius}" />
+          <circle class="ring-fill" cx="${size/2}" cy="${size/2}" r="${radius}" 
+            stroke="${color}"
+            style="stroke-dasharray: ${circumference}; stroke-dashoffset: ${offset};" />
+        </svg>
+        <div class="ring-text">
+          ${Math.round(pct)}%
+          <span>avance</span>
+        </div>
+      </div>
+    `;
+  }
+
   // --- Data fetching ---
   async function fetchData() {
     showLoading();
@@ -112,9 +139,9 @@ document.addEventListener("DOMContentLoaded", function () {
       refreshBtn.classList.remove("opacity-50", "pointer-events-none");
       refreshBtn.innerHTML = `
                 <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
                 </svg>
-                Actualizar datos`;
+                Actualizar`;
       hideLoading();
     }
   }
@@ -128,6 +155,10 @@ document.addEventListener("DOMContentLoaded", function () {
     let summary = data.summary;
     let errors = data.error_list || [];
     let errorTypes = data.errors_by_type || {};
+
+    const auditorGrid = document.getElementById("auditor-grid");
+    const auditorGridTitle = document.getElementById("auditor-grid-title");
+    const globalCharts = document.getElementById("global-charts-section");
 
     if (
       filter !== "all" &&
@@ -153,6 +184,14 @@ document.addEventListener("DOMContentLoaded", function () {
         errorTypes[e.type] = (errorTypes[e.type] || 0) + 1;
       });
     }
+
+    // Always show/update auditor grid and global charts
+    if(auditorGrid) {
+        auditorGrid.style.display = "grid";
+        renderAuditorGrid(data.per_auditor_data, filter);
+    }
+    if(auditorGridTitle) auditorGridTitle.style.display = "flex";
+    if(globalCharts) globalCharts.style.display = "grid";
 
     // Update cards
     document.getElementById("total-activities").innerText =
@@ -439,8 +478,8 @@ document.addEventListener("DOMContentLoaded", function () {
   }
 
   // --- Error table (with batch loading) ---
+
   function renderErrorTable(reset = false) {
-    console.time("renderTableBatch");
     const tbody = document.getElementById("error-table-body");
     const countSpan = document.getElementById("error-count");
     const loadMoreContainer = document.getElementById("load-more-container");
@@ -451,22 +490,18 @@ document.addEventListener("DOMContentLoaded", function () {
     }
 
     if (!currentErrors || currentErrors.length === 0) {
-      countSpan.innerText = "0";
+      if(countSpan) countSpan.innerText = "0";
       tbody.innerHTML =
         '<tr><td colspan="4" class="px-6 py-8 text-center text-gray-500 italic">No se encontraron inconsistencias. ¡Todo limpio!</td></tr>';
       if (loadMoreContainer) loadMoreContainer.style.display = "none";
-      console.timeEnd("renderTableBatch");
       return;
     }
 
-    countSpan.innerText = currentErrors.length;
+    if(countSpan) countSpan.innerText = currentErrors.length;
 
     const nextBatch = currentErrors.slice(
       visibleCount,
       visibleCount + PAGE_SIZE,
-    );
-    console.log(
-      `[FRONTEND PERF] Rendering batch: current_visible=${visibleCount}, next_count=${nextBatch.length}, total_total=${currentErrors.length}`,
     );
 
     nextBatch.forEach((err) => {
@@ -483,15 +518,68 @@ document.addEventListener("DOMContentLoaded", function () {
 
     visibleCount += nextBatch.length;
 
-    // Show/hide load more button
     if (loadMoreContainer) {
-      if (visibleCount < currentErrors.length) {
-        loadMoreContainer.style.display = "block";
-      } else {
-        loadMoreContainer.style.display = "none";
-      }
+      loadMoreContainer.style.display = visibleCount < currentErrors.length ? "block" : "none";
     }
-    console.timeEnd("renderTableBatch");
+  }
+
+  // --- Auditor Grid Helper ---
+  function renderAuditorGrid(perAuditorData, activeFilter = "all") {
+      const container = document.getElementById("auditor-grid");
+      if(!container) return;
+      container.innerHTML = "";
+
+      Object.entries(perAuditorData).forEach(([auditor, info]) => {
+          const card = document.createElement("div");
+          const isActive = auditor === activeFilter;
+          
+          card.classList.add("glass-card", "p-5", "flex", "items-center", "gap-5", "hover:scale-[1.02]", "transition-all", "cursor-pointer");
+          if (isActive) {
+              card.classList.add("ring-2", "ring-pink-500", "bg-pink-50/30");
+          }
+
+          card.onclick = () => {
+              const prevFilter = auditorFilter.value;
+              auditorFilter.value = (auditor === prevFilter) ? "all" : auditor;
+              updateUI();
+              // Switch to general tab to see the details of the filtered auditor
+              if (typeof switchTab === 'function') switchTab('general');
+              window.scrollTo({ top: 0, behavior: 'smooth' });
+          };
+
+          const errorPct = info.total > 0 ? (info.rows_with_errors / info.total * 100) : 0;
+          let statusColor = "green";
+          let statusText = "Óptimo";
+          if (errorPct > 20) { statusColor = "red"; statusText = "Crítico"; }
+          else if (errorPct > 10) { statusColor = "orange"; statusText = "Alerta"; }
+          else if (errorPct > 0) { statusColor = "yellow"; statusText = "Regular"; }
+
+          const statusBadge = `
+            <span class="px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider
+              ${statusColor === 'green' ? 'bg-green-100 text-green-700' : ''}
+              ${statusColor === 'yellow' ? 'bg-yellow-100 text-yellow-700' : ''}
+              ${statusColor === 'orange' ? 'bg-orange-100 text-orange-700' : ''}
+              ${statusColor === 'red' ? 'bg-red-100 text-red-700' : ''}
+            ">${statusText}</span>
+          `;
+
+          card.innerHTML = `
+              <div class="flex-shrink-0">${getProgressRing(info.progress, 70)}</div>
+              <div class="flex-1 min-w-0">
+                  <div class="flex items-center justify-between gap-2 mb-1">
+                      <h4 class="font-extrabold text-gray-800 truncate ${isActive ? 'text-pink-700' : ''}">${auditor}</h4>
+                      ${statusBadge}
+                  </div>
+                  <div class="grid grid-cols-2 gap-y-1 text-[11px] text-gray-500">
+                      <div>Total: <strong class="text-gray-700">${info.total}</strong></div>
+                      <div>Limpias: <strong class="text-gray-700">${info.total - info.rows_with_errors}</strong></div>
+                      <div>Errores: <strong class="text-pink-600">${info.rows_with_errors}</strong></div>
+                      <div>Tasa: <strong class="text-gray-700">${errorPct.toFixed(1)}%</strong></div>
+                  </div>
+              </div>
+          `;
+          container.appendChild(card);
+      });
   }
 
   // --- Event listeners ---
@@ -503,11 +591,9 @@ document.addEventListener("DOMContentLoaded", function () {
     loadMoreBtn.addEventListener("click", () => renderErrorTable(false));
   }
 
-  // Lazy/Infinite loading implementation with Intersection Observer
   const observer = new IntersectionObserver(
     (entries) => {
       if (entries[0].isIntersecting && visibleCount < currentErrors.length) {
-        console.log("[JS] Auto-loading next batch...");
         renderErrorTable(false);
       }
     },
@@ -516,6 +602,5 @@ document.addEventListener("DOMContentLoaded", function () {
 
   if (loadMoreBtn) observer.observe(loadMoreBtn);
 
-  // Initial fetch
   fetchData();
 });
