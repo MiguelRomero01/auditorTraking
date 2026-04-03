@@ -1,6 +1,7 @@
 from fastapi import APIRouter, HTTPException, Depends
 from app.services.sheets_service import sheets_service
 from app.analytics.processor import processor
+from app.analytics.executive import build_executive_report
 from app.cache.data_cache import data_cache
 import logging
 from typing import Dict, Any
@@ -55,3 +56,25 @@ async def refresh_data():
     except Exception as e:
         logger.error(f"Refresh failed: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Error al refrescar datos: {str(e)}")
+
+@router.get("/executive-report")
+async def get_executive_report():
+    """Returns the full executive report with per-auditor breakdown"""
+    if data_cache.is_empty():
+        logger.info("Cache empty for exec report, fetching from Google Sheets...")
+        try:
+            df = await sheets_service.fetch_all_data()
+            processed_data = processor.process(df)
+            data_cache.set_data(processed_data, df)
+        except Exception as e:
+            logger.error(f"Error fetching data for executive report: {str(e)}")
+            raise HTTPException(status_code=500, detail=str(e))
+
+    raw_df = data_cache._raw_df
+    processed = data_cache.get_data()
+    try:
+        report = build_executive_report(raw_df, processed)
+        return report
+    except Exception as e:
+        logger.error(f"Executive report generation failed: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Error generando informe ejecutivo: {str(e)}")

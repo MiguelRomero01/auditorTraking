@@ -62,21 +62,37 @@ class DataProcessor:
 
         # --- Summary calculations ---
         total_activities = len(df)
-        rows_with_errors = len(set(e["row_index"] for e in all_errors))
+        rows_with_errors = len(set((e["auditor"], e["row_index"]) for e in all_errors))
         total_error_count = len(all_errors)
 
         auditor_load = df.groupby("Auditor_Sheet").size().to_dict()
 
-        # Progress — find column with fuzzy matching
+        # --- C8: Activities where AC (avance al corte) >= 90 ---
+        progress_90_count = 0
+        # --- C9: Activities with entregable (AL No. de entregables asociados a la Actividad > 0) ---
+        entregable_col = find_column_fuzzy(df, "No. de entregables asociados a la Actividad")
+
+        # Progress — now calculated as (clean_activities / total_activities * 100)
+        avg_progress = (
+            (total_activities - rows_with_errors) / total_activities * 100
+            if total_activities > 0
+            else 0
+        )
         progress_col = find_column_fuzzy(df, "Porcentaje avance al corte")
         if progress_col:
             df[progress_col] = pd.to_numeric(
                 df[progress_col].astype(str).str.replace("%", ""), errors="coerce"
             ).fillna(0)
-            avg_progress = df[progress_col].mean()
+            progress_90_count = int((df[progress_col] >= 90).sum())
         else:
-            avg_progress = 0
             logger.warning("Column 'Porcentaje avance al corte' not found in data")
+
+        activities_with_entregable = 0
+        if entregable_col:
+            entregable_series = pd.to_numeric(
+                df[entregable_col].astype(str).str.replace("%", ""), errors="coerce"
+            ).fillna(0)
+            activities_with_entregable = int((entregable_series > 0).sum())
 
         # Error type distribution
         error_type_dist: Dict[str, int] = {}
@@ -92,15 +108,30 @@ class DataProcessor:
             a_rows_with_errors = len(set(e["row_index"] for e in a_errs))
             a_total_errors = len(a_errs)
 
-            prog = 0
+            a_avg_progress = (
+                (len(a_df) - a_rows_with_errors) / len(a_df) * 100
+                if len(a_df) > 0
+                else 0
+            )
+
+            a_with_entregable = 0
+            if entregable_col and entregable_col in a_df.columns:
+                a_entregable_series = pd.to_numeric(
+                    a_df[entregable_col].astype(str).str.replace("%", ""), errors="coerce"
+                ).fillna(0)
+                a_with_entregable = int((a_entregable_series > 0).sum())
+
+            a_at90 = 0
             if progress_col and progress_col in a_df.columns:
-                prog = a_df[progress_col].mean()
+                a_at90 = int((a_df[progress_col] >= 90).sum())
 
             per_auditor_data[auditor_str] = {
                 "total": len(a_df),
                 "errors": a_total_errors,
                 "rows_with_errors": a_rows_with_errors,
-                "progress": round(prog, 2),
+                "progress": round(a_avg_progress, 2),
+                "activities_with_entregable": a_with_entregable,
+                "activities_at_90_plus": a_at90,
             }
 
         response = {
@@ -110,6 +141,12 @@ class DataProcessor:
                 "rows_with_errors": rows_with_errors,
                 "clean_activities": total_activities - rows_with_errors,
                 "avg_progress": round(avg_progress, 2),
+                # C5: error rate
+                "error_rate_pct": round((rows_with_errors / total_activities * 100), 1) if total_activities > 0 else 0,
+                # C8: activities at or above 90% progress
+                "activities_at_90_plus": progress_90_count,
+                # C9: activities that have at least 1 entregable (AJ > 0)
+                "activities_with_entregable": activities_with_entregable,
                 "last_update": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
             },
             "auditors": {str(k): v for k, v in auditor_load.items()},
@@ -132,6 +169,9 @@ class DataProcessor:
                 "rows_with_errors": 0,
                 "clean_activities": 0,
                 "avg_progress": 0,
+                "error_rate_pct": 0,
+                "activities_at_90_plus": 0,
+                "activities_with_entregable": 0,
                 "last_update": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
             },
             "auditors": {},

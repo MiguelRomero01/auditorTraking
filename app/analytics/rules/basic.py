@@ -10,7 +10,12 @@ from app.utils.helpers import (
 )
 
 def rule_empty_cells(row: pd.Series, df: pd.DataFrame) -> List[ValidationResult]:
-    """Rule 5: No empty cells in required columns."""
+    """Rule 5: No empty cells in required columns.
+    C4 exception: when AD (¿El Auditor debe hacer Seguimiento?) = 'NO', skip this rule
+    because the auditor did not perform follow-up in this period."""
+    followup = _val(row, "¿El Auditor debe hacer Seguimiento en este Periodo?").upper()
+    if followup == "NO":
+        return []  # C4: No tracking required — cells may be empty
     errors = []
     for col in REQUIRED_COLUMNS:
         if col in row.index:
@@ -29,7 +34,12 @@ def rule_unique_llave(row: pd.Series, df: pd.DataFrame) -> List[ValidationResult
     return []
 
 def rule_percentages_max_100(row: pd.Series, df: pd.DataFrame) -> List[ValidationResult]:
-    """Rule 6: Percentage columns must not exceed 100%."""
+    """Rule 6: Percentage columns must not exceed 100%.
+    C6 exception: when AC (avance al corte) >= 90, the 'avance periodo evaluado' column
+    is not validated for the 100% cap — activity is effectively complete."""
+    avance_corte = _num(row, "Porcentaje avance al corte")
+    at_or_above_90 = (not np.isnan(avance_corte) and avance_corte >= 90)
+
     pct_cols = [
         "Porcentaje avance al corte",
         "Porcentaje de avance de los entregables",
@@ -38,6 +48,9 @@ def rule_percentages_max_100(row: pd.Series, df: pd.DataFrame) -> List[Validatio
     ]
     errors = []
     for col in pct_cols:
+        # C6: if AC >= 90, skip validation of 'avance periodo evaluado'
+        if at_or_above_90 and col == "Porcentaje avance periodo evaluado":
+            continue
         if col in row.index:
             n = _num(row, col)
             if not np.isnan(n) and n > 100:

@@ -38,6 +38,15 @@ async def get_dashboard(request: Request):
         context={"title": settings.APP_TITLE}
     )
 
+@app.get("/executive-report", response_class=HTMLResponse)
+async def get_executive_report_page(request: Request):
+    """Render the executive report HTML page"""
+    return templates.TemplateResponse(
+        request=request,
+        name="executive_report.html",
+        context={"title": f"Informe Ejecutivo — {settings.APP_TITLE}"}
+    )
+
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run("app.main:app", host="127.0.0.1", port=8000, reload=True)

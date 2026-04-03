@@ -1,0 +1,870 @@
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>{{ title }}</title>
+    <meta
+      name="description"
+      content="Informe Ejecutivo de Planes de Mejoramiento por Auditor — Seguimiento y Validación AIG"
+    />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&display=swap"
+      rel="stylesheet"
+    />
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+      :root {
+        --primary: #be185d;
+        --primary-dark: #9d1152;
+        --primary-light: #fce7f3;
+        --secondary: #7c3aed;
+        --surface: rgba(255, 255, 255, 0.92);
+        --surface-hover: rgba(255, 255, 255, 1);
+        --bg: #f0f4f8;
+        --text: #1e293b;
+        --muted: #64748b;
+        --border: rgba(148, 163, 184, 0.2);
+        --green: #10b981;
+        --yellow: #f59e0b;
+        --orange: #f97316;
+        --red: #ef4444;
+        --radius: 18px;
+        --shadow: 0 4px 24px rgba(30, 41, 59, 0.08);
+        --shadow-lg: 0 8px 40px rgba(30, 41, 59, 0.13);
+      }
+
+      * {
+        box-sizing: border-box;
+        margin: 0;
+        padding: 0;
+      }
+
+      body {
+        font-family: "Outfit", sans-serif;
+        background: var(--bg);
+        color: var(--text);
+        min-height: 100vh;
+      }
+
+      /* ─── LOADING ─── */
+      #loading-overlay {
+        position: fixed;
+        inset: 0;
+        background: rgba(240, 244, 248, 0.95);
+        backdrop-filter: blur(12px);
+        z-index: 9999;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        transition: opacity 0.5s ease;
+      }
+      #loading-overlay.hidden {
+        opacity: 0;
+        pointer-events: none;
+      }
+      .spinner {
+        width: 56px;
+        height: 56px;
+        border: 5px solid #e2e8f0;
+        border-top-color: var(--primary);
+        border-radius: 50%;
+        animation: spin 0.75s linear infinite;
+      }
+      @keyframes spin {
+        to {
+          transform: rotate(360deg);
+        }
+      }
+
+      /* ─── NAV ─── */
+      nav {
+        background: linear-gradient(135deg, #be185d 0%, #7c3aed 100%);
+        color: #fff;
+        padding: 20px 40px;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        box-shadow: 0 4px 20px rgba(190, 24, 93, 0.3);
+        position: sticky;
+        top: 0;
+        z-index: 100;
+      }
+      nav h1 {
+        font-size: 1.5rem;
+        font-weight: 800;
+        letter-spacing: -0.5px;
+      }
+      nav p {
+        font-size: 0.72rem;
+        opacity: 0.75;
+        text-transform: uppercase;
+        letter-spacing: 0.1em;
+        margin-top: 3px;
+      }
+      .nav-actions {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+      }
+      .nav-link {
+        background: rgba(255, 255, 255, 0.15);
+        color: #fff;
+        text-decoration: none;
+        padding: 8px 18px;
+        border-radius: 50px;
+        font-size: 0.82rem;
+        font-weight: 600;
+        border: 1px solid rgba(255, 255, 255, 0.25);
+        transition: background 0.2s;
+      }
+      .nav-link:hover {
+        background: rgba(255, 255, 255, 0.28);
+      }
+      .nav-link.active {
+        background: rgba(255, 255, 255, 0.95);
+        color: var(--primary);
+      }
+      #refresh-btn {
+        background: #fff;
+        color: var(--primary);
+        border: none;
+        cursor: pointer;
+        padding: 9px 22px;
+        border-radius: 50px;
+        font-weight: 700;
+        font-size: 0.85rem;
+        display: flex;
+        align-items: center;
+        gap: 7px;
+        transition:
+          box-shadow 0.2s,
+          transform 0.15s;
+        font-family: "Outfit", sans-serif;
+      }
+      #refresh-btn:hover {
+        box-shadow: 0 4px 16px rgba(0, 0, 0, 0.15);
+        transform: translateY(-1px);
+      }
+      #refresh-btn:disabled {
+        opacity: 0.55;
+        cursor: not-allowed;
+        transform: none;
+      }
+
+      /* ─── META BAND ─── */
+      .meta-band {
+        background: linear-gradient(
+          90deg,
+          rgba(190, 24, 93, 0.06),
+          rgba(124, 58, 237, 0.06)
+        );
+        border-bottom: 1px solid var(--border);
+        padding: 10px 40px;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        font-size: 0.8rem;
+        color: var(--muted);
+      }
+      .meta-band strong {
+        color: var(--text);
+      }
+
+      /* ─── MAIN ─── */
+      main {
+        max-width: 1400px;
+        margin: 0 auto;
+        padding: 36px 32px 60px;
+      }
+
+      /* ─── GLOBAL KPI STRIP ─── */
+      .kpi-strip {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+        gap: 16px;
+        margin-bottom: 36px;
+      }
+      .kpi-card {
+        background: var(--surface);
+        border-radius: var(--radius);
+        padding: 22px 20px;
+        box-shadow: var(--shadow);
+        border: 1px solid var(--border);
+        transition:
+          box-shadow 0.2s,
+          transform 0.15s;
+        position: relative;
+        overflow: hidden;
+      }
+      .kpi-card:hover {
+        box-shadow: var(--shadow-lg);
+        transform: translateY(-2px);
+      }
+      .kpi-card::before {
+        content: "";
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 4px;
+        height: 100%;
+        border-radius: 4px 0 0 4px;
+      }
+      .kpi-card.pink::before {
+        background: var(--primary);
+      }
+      .kpi-card.purple::before {
+        background: var(--secondary);
+      }
+      .kpi-card.green::before {
+        background: var(--green);
+      }
+      .kpi-card.red::before {
+        background: var(--red);
+      }
+      .kpi-card.yellow::before {
+        background: var(--yellow);
+      }
+      .kpi-card.orange::before {
+        background: var(--orange);
+      }
+      .kpi-label {
+        font-size: 0.7rem;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.08em;
+        color: var(--muted);
+        margin-bottom: 6px;
+      }
+      .kpi-value {
+        font-size: 2.4rem;
+        font-weight: 800;
+        line-height: 1;
+      }
+      .kpi-card.pink .kpi-value {
+        color: var(--primary);
+      }
+      .kpi-card.purple .kpi-value {
+        color: var(--secondary);
+      }
+      .kpi-card.green .kpi-value {
+        color: var(--green);
+      }
+      .kpi-card.red .kpi-value {
+        color: var(--red);
+      }
+      .kpi-card.yellow .kpi-value {
+        color: var(--yellow);
+      }
+      .kpi-card.orange .kpi-value {
+        color: var(--orange);
+      }
+      .kpi-sub {
+        font-size: 0.72rem;
+        color: var(--muted);
+        margin-top: 5px;
+      }
+
+      /* ─── SECTION TITLE ─── */
+      .section-title {
+        font-size: 1.15rem;
+        font-weight: 800;
+        color: var(--text);
+        margin-bottom: 20px;
+        display: flex;
+        align-items: center;
+        gap: 10px;
+      }
+      .section-title .pill {
+        background: var(--primary-light);
+        color: var(--primary);
+        font-size: 0.72rem;
+        font-weight: 700;
+        padding: 3px 10px;
+        border-radius: 50px;
+      }
+
+      /* ─── FILTER BAR ─── */
+      .filter-bar {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        margin-bottom: 24px;
+        flex-wrap: wrap;
+      }
+      .filter-bar label {
+        font-size: 0.82rem;
+        font-weight: 600;
+        color: var(--muted);
+      }
+      #auditor-filter-exec {
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: 10px;
+        padding: 8px 14px;
+        font-family: "Outfit", sans-serif;
+        font-size: 0.85rem;
+        color: var(--text);
+        cursor: pointer;
+        min-width: 200px;
+        box-shadow: var(--shadow);
+      }
+      .sort-btns {
+        display: flex;
+        gap: 8px;
+        margin-left: auto;
+      }
+      .sort-btn {
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        padding: 6px 14px;
+        font-family: "Outfit", sans-serif;
+        font-size: 0.78rem;
+        font-weight: 600;
+        color: var(--muted);
+        cursor: pointer;
+        transition: all 0.2s;
+      }
+      .sort-btn.active,
+      .sort-btn:hover {
+        background: var(--primary);
+        color: #fff;
+        border-color: var(--primary);
+      }
+
+      /* ─── AUDITOR CARDS GRID ─── */
+      #auditor-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(540px, 1fr));
+        gap: 24px;
+      }
+
+      /* ─── AUDITOR CARD ─── */
+      .auditor-card {
+        background: var(--surface);
+        border-radius: var(--radius);
+        box-shadow: var(--shadow);
+        border: 1px solid var(--border);
+        overflow: hidden;
+        transition:
+          box-shadow 0.25s,
+          transform 0.2s;
+      }
+      .auditor-card:hover {
+        box-shadow: var(--shadow-lg);
+        transform: translateY(-3px);
+      }
+
+      .card-header {
+        padding: 20px 24px;
+        display: flex;
+        align-items: center;
+        gap: 16px;
+        border-bottom: 1px solid var(--border);
+        cursor: pointer;
+        background: linear-gradient(
+          135deg,
+          rgba(190, 24, 93, 0.03),
+          rgba(124, 58, 237, 0.03)
+        );
+        user-select: none;
+      }
+      .card-header:hover {
+        background: linear-gradient(
+          135deg,
+          rgba(190, 24, 93, 0.06),
+          rgba(124, 58, 237, 0.06)
+        );
+      }
+
+      /* Progress ring */
+      .progress-ring-wrap {
+        position: relative;
+        flex-shrink: 0;
+      }
+      .progress-ring-wrap svg {
+        transform: rotate(-90deg);
+      }
+      .ring-bg {
+        fill: none;
+        stroke: #e2e8f0;
+        stroke-width: 6;
+      }
+      .ring-fill {
+        fill: none;
+        stroke-width: 6;
+        stroke-linecap: round;
+        transition: stroke-dashoffset 1s ease;
+      }
+      .ring-text {
+        position: absolute;
+        inset: 0;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        font-weight: 800;
+        font-size: 0.88rem;
+        color: var(--text);
+        line-height: 1.1;
+      }
+      .ring-text span {
+        font-size: 0.6rem;
+        font-weight: 500;
+        color: var(--muted);
+      }
+
+      .card-header-info {
+        flex: 1;
+        min-width: 0;
+      }
+      .auditor-name {
+        font-size: 1.05rem;
+        font-weight: 800;
+        color: var(--text);
+      }
+      .status-badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 5px;
+        font-size: 0.7rem;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.06em;
+        padding: 3px 10px;
+        border-radius: 50px;
+        margin-top: 4px;
+      }
+      .status-badge.green {
+        background: #dcfce7;
+        color: #15803d;
+      }
+      .status-badge.yellow {
+        background: #fef9c3;
+        color: #a16207;
+      }
+      .status-badge.orange {
+        background: #ffedd5;
+        color: #c2410c;
+      }
+      .status-badge.red {
+        background: #fee2e2;
+        color: #b91c1c;
+      }
+
+      .card-mini-stats {
+        display: flex;
+        gap: 16px;
+        margin-top: 10px;
+        flex-wrap: wrap;
+      }
+      .mini-stat {
+        font-size: 0.75rem;
+        color: var(--muted);
+      }
+      .mini-stat strong {
+        color: var(--text);
+        font-weight: 700;
+      }
+
+      .card-toggle {
+        width: 30px;
+        height: 30px;
+        border-radius: 50%;
+        background: var(--primary-light);
+        color: var(--primary);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 1rem;
+        flex-shrink: 0;
+        transition: transform 0.3s;
+      }
+      .auditor-card.open .card-toggle {
+        transform: rotate(180deg);
+      }
+
+      /* ─── CARD BODY (COLLAPSIBLE) ─── */
+      .card-body {
+        max-height: 0;
+        overflow: hidden;
+        transition: max-height 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+      }
+      .auditor-card.open .card-body {
+        max-height: 1400px;
+      }
+
+      .card-body-inner {
+        padding: 24px;
+      }
+
+      /* ─── CARD CHARTS ROW ─── */
+      .charts-row {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 16px;
+        margin-bottom: 20px;
+      }
+      .chart-panel {
+        background: rgba(248, 250, 252, 0.8);
+        border: 1px solid var(--border);
+        border-radius: 12px;
+        padding: 14px;
+      }
+      .chart-panel h4 {
+        font-size: 0.72rem;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.06em;
+        color: var(--muted);
+        margin-bottom: 10px;
+      }
+      .chart-wrap {
+        height: 160px;
+      }
+
+      /* ─── PROGRESS DIST BAR ─── */
+      .progress-dist {
+        margin-bottom: 20px;
+      }
+      .progress-dist h4 {
+        font-size: 0.72rem;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.06em;
+        color: var(--muted);
+        margin-bottom: 10px;
+      }
+      .bucket-row {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        margin-bottom: 6px;
+      }
+      .bucket-label {
+        font-size: 0.72rem;
+        color: var(--muted);
+        width: 55px;
+        text-align: right;
+      }
+      .bucket-bar-bg {
+        flex: 1;
+        height: 12px;
+        background: #e2e8f0;
+        border-radius: 50px;
+        overflow: hidden;
+      }
+      .bucket-bar-fill {
+        height: 100%;
+        border-radius: 50px;
+        transition: width 1s ease;
+      }
+      .bucket-count {
+        font-size: 0.72rem;
+        font-weight: 700;
+        color: var(--text);
+        width: 28px;
+      }
+
+      /* ─── TOP OBSERVATIONS ─── */
+      .top-obs {
+        margin-bottom: 20px;
+      }
+      .top-obs h4 {
+        font-size: 0.72rem;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.06em;
+        color: var(--muted);
+        margin-bottom: 10px;
+      }
+      .obs-item {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        padding: 8px 0;
+        border-bottom: 1px solid var(--border);
+      }
+      .obs-item:last-child {
+        border-bottom: none;
+      }
+      .obs-label {
+        flex: 1;
+        font-size: 0.78rem;
+        color: var(--text);
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+      .obs-count {
+        background: var(--primary-light);
+        color: var(--primary);
+        font-size: 0.72rem;
+        font-weight: 800;
+        padding: 2px 9px;
+        border-radius: 50px;
+      }
+
+      /* ─── ERROR TABLE ─── */
+      .error-table-section h4 {
+        font-size: 0.72rem;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.06em;
+        color: var(--muted);
+        margin-bottom: 10px;
+      }
+      .err-table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 0.78rem;
+      }
+      .err-table th {
+        text-align: left;
+        padding: 8px 10px;
+        background: #f8fafc;
+        color: var(--muted);
+        font-weight: 700;
+        font-size: 0.68rem;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+        border-bottom: 2px solid var(--border);
+      }
+      .err-table td {
+        padding: 8px 10px;
+        border-bottom: 1px solid var(--border);
+        vertical-align: top;
+      }
+      .err-table tr:last-child td {
+        border-bottom: none;
+      }
+      .err-table tr:hover td {
+        background: #f8fafc;
+      }
+      .err-type-pill {
+        display: inline-block;
+        background: #fce7f3;
+        color: var(--primary);
+        font-size: 0.65rem;
+        font-weight: 700;
+        text-transform: uppercase;
+        padding: 2px 8px;
+        border-radius: 50px;
+        white-space: nowrap;
+      }
+      .err-type-pill.blue {
+        background: #ede9fe;
+        color: #6d28d9;
+      }
+      .err-type-pill.orange {
+        background: #ffedd5;
+        color: #c2410c;
+      }
+      .err-type-pill.gray {
+        background: #f1f5f9;
+        color: #64748b;
+      }
+      .month-tag {
+        font-size: 0.68rem;
+        color: var(--muted);
+        font-style: italic;
+      }
+
+      /* ─── NO DATA ─── */
+      .no-data {
+        text-align: center;
+        padding: 60px 20px;
+        color: var(--muted);
+        font-size: 0.95rem;
+      }
+      .no-data .emoji {
+        font-size: 3rem;
+        margin-bottom: 12px;
+      }
+
+      /* ─── RESPONSIVE ─── */
+      @media (max-width: 900px) {
+        #auditor-grid {
+          grid-template-columns: 1fr;
+        }
+        .charts-row {
+          grid-template-columns: 1fr;
+        }
+        nav {
+          padding: 16px 20px;
+          flex-direction: column;
+          gap: 12px;
+          align-items: flex-start;
+        }
+        main {
+          padding: 24px 16px 48px;
+        }
+        .kpi-strip {
+          grid-template-columns: repeat(2, 1fr);
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <!-- Loading Overlay -->
+    <div id="loading-overlay">
+      <div class="spinner"></div>
+      <p
+        style="
+          margin-top: 20px;
+          color: #64748b;
+          font-weight: 600;
+          font-size: 1rem;
+        "
+      >
+        Generando informe ejecutivo...
+      </p>
+      <p style="margin-top: 6px; color: #94a3b8; font-size: 0.82rem">
+        Analizando planes de mejoramiento por auditor
+      </p>
+    </div>
+
+    <!-- Navigation -->
+    <nav>
+      <div>
+        <h1>📊 Informe Ejecutivo — AIG</h1>
+        <p>Planes de Mejoramiento · Seguimiento y Validación</p>
+      </div>
+      <div class="nav-actions">
+        <a href="/" class="nav-link">← Dashboard General</a>
+        <a href="/executive-report" class="nav-link active"
+          >Informe Ejecutivo</a
+        >
+        <button id="refresh-btn" title="Actualizar datos desde Google Sheets">
+          <svg
+            xmlns="http://www.w3.org/2000/svg"
+            width="15"
+            height="15"
+            fill="none"
+            viewBox="0 0 24 24"
+            stroke="currentColor"
+          >
+            <path
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              stroke-width="2.2"
+              d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
+            />
+          </svg>
+          Actualizar
+        </button>
+      </div>
+    </nav>
+
+    <!-- Meta band -->
+    <div class="meta-band">
+      <span id="report-date">Generando...</span>
+      <span id="report-scope"></span>
+    </div>
+
+    <main>
+      <!-- Global KPI Strip -->
+      <div class="kpi-strip" id="kpi-strip">
+        <div class="kpi-card pink">
+          <div class="kpi-label">Total Auditores</div>
+          <div class="kpi-value" id="kpi-auditores">—</div>
+          <div class="kpi-sub">Hojas analizadas</div>
+        </div>
+        <div class="kpi-card purple">
+          <div class="kpi-label">Total Actividades</div>
+          <div class="kpi-value" id="kpi-actividades">—</div>
+          <div class="kpi-sub">Planes de mejoramiento</div>
+        </div>
+        <div class="kpi-card green">
+          <div class="kpi-label">Avance Promedio</div>
+          <div class="kpi-value" id="kpi-avance">—</div>
+          <div class="kpi-sub">Al corte</div>
+        </div>
+        <div class="kpi-card green">
+          <div class="kpi-label">Actividades Limpias</div>
+          <div class="kpi-value" id="kpi-limpias">—</div>
+          <div class="kpi-sub">Sin inconsistencias</div>
+        </div>
+        <div class="kpi-card red">
+          <div class="kpi-label">Inconsistencias</div>
+          <div class="kpi-value" id="kpi-errores">—</div>
+          <div class="kpi-sub">Errores detectados</div>
+        </div>
+        <div class="kpi-card red">
+          <div class="kpi-label">Estado Crítico</div>
+          <div class="kpi-value" id="kpi-criticos">—</div>
+          <div class="kpi-sub">Auditores ≥ 50% errores</div>
+        </div>
+        <div class="kpi-card orange">
+          <div class="kpi-label">Con Observaciones</div>
+          <div class="kpi-value" id="kpi-obs">—</div>
+          <div class="kpi-sub">Auditores 20–50% errores</div>
+        </div>
+        <div class="kpi-card green">
+          <div class="kpi-label">Estado Óptimo</div>
+          <div class="kpi-value" id="kpi-optimo">—</div>
+          <div class="kpi-sub">Sin errores</div>
+        </div>
+      </div>
+
+      <!-- Filter bar -->
+      <div class="filter-bar">
+        <label for="auditor-filter-exec">🔍 Filtrar auditor:</label>
+        <select id="auditor-filter-exec">
+          <option value="all">Todos los auditores</option>
+        </select>
+        <div class="sort-btns">
+          <button
+            class="sort-btn active"
+            id="sort-name"
+            onclick="sortCards('name')"
+          >
+            A–Z
+          </button>
+          <button
+            class="sort-btn"
+            id="sort-errors"
+            onclick="sortCards('errors')"
+          >
+            Más errores
+          </button>
+          <button
+            class="sort-btn"
+            id="sort-progress"
+            onclick="sortCards('progress')"
+          >
+            Avance ↓
+          </button>
+        </div>
+      </div>
+
+      <div class="section-title">
+        Por auditor
+        <span class="pill" id="auditor-count-badge">0 auditores</span>
+      </div>
+
+      <!-- Auditor Cards Grid -->
+      <div id="auditor-grid">
+        <div class="no-data">
+          <div class="emoji">📋</div>
+          <p>Cargando datos...</p>
+        </div>
+      </div>
+    </main>
+
+    <footer
+      style="
+        text-align: center;
+        padding: 28px;
+        color: #94a3b8;
+        font-size: 0.78rem;
+      "
+    >
+      © 2026 Auditor Tracking System — AIG · Informe Ejecutivo
+    </footer>
+
+    <script src="/static/js/executive_report.js?v={{ range(1,99999)|random }}"></script>
+  </body>
+</html>

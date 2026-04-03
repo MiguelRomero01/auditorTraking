@@ -13,9 +13,13 @@ from .logic import (
     rule_soportes_vs_entregables,
     rule_suficiente_no_consistency,
     rule_entregables_vs_cantidad,
-    rule_progress_comparison
+    rule_progress_comparison,
+    rule_followup_at_90,
+    rule_validacion_vs_avance_anterior,
+    rule_progress_90_empty_ranges,
 )
-from .coherence import rule_comment_coherence
+# C28: rule_comment_coherence is DISABLED pending keyword review
+# from .coherence import rule_comment_coherence
 
 ALL_RULES = [
     rule_empty_cells,
@@ -31,5 +35,8 @@ ALL_RULES = [
     rule_suficiente_no_consistency,
     rule_entregables_vs_cantidad,
     rule_progress_comparison,
-    rule_comment_coherence
+    rule_followup_at_90,           # C3: AC>=90 -> AD must be "NO"
+    rule_validacion_vs_avance_anterior,  # C7: AW vs AX, AY vs AX when AW=0
+    rule_progress_90_empty_ranges, # AC>=90 -> AE-AU must be empty
+    # rule_comment_coherence,     # C28: DISABLED
 ]

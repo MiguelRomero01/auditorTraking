@@ -1,0 +1,28 @@
+1.Cantidad de soportes de la columna AL debe ser igual o inferior a la columna AJ. Nunca superior.
+
+2.El numero de entregables asociados a la actividad (columna AL) nunca puede ser mayor a la columna (AJ)
+
+3.Cuando la columna AC sea igual o mayor a 90, la columna AD debe decir "NO". Si es mayor a 100% debe presentar error.
+
+4.Cuando la columna AD diga "NO", se pueden dejar las celdas vacias, sin embargo la celda V puede contener la palabra "Cumplida o completada"
+
+
+5.Colocar una nueva tarjeta que índique la cantida de actividades con error y formular (Actividades con error/Total de actividades)=Avance promedio.
+
+
+6.Para el error en avance, colocar excepción cuando el porcentaje esté igual o mayor a 90% no tener en cuenta el porcentaje de avance evaluado en el periodo.
+
+7.La columna AW no puede ser inferior a la columna AX pero si puede ser cero, y la columna AY no puede ser inferior a la Columna AX cuando la columna AW sea cero)
+
+ 
+8.Agregar tarjeta que indique la cantidad de actividades que en la columna AC sea=>90
+
+
+9.Colocar una tarjeta adicional donde se vea cuantas de las actividades asignadas tienen entregable, esto sale de:
+
+Cantidad de actividades que cuenten con un numero mayor a cero en columna AJ.
+
+
+
+
+Desactivar, coherencia del comentario, hasta que se organicen las palabras clave.
