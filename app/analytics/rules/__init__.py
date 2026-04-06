@@ -17,6 +17,7 @@ from .logic import (
     rule_followup_at_90,
     rule_validacion_vs_avance_anterior,
     rule_progress_90_empty_ranges,
+    rule_supply_no_requires_zero_values,
 )
 # C28: rule_comment_coherence is DISABLED pending keyword review
 # from .coherence import rule_comment_coherence
@@ -38,5 +39,6 @@ ALL_RULES = [
     rule_followup_at_90,           # C3: AC>=90 -> AD must be "NO"
     rule_validacion_vs_avance_anterior,  # C7: AW vs AX, AY vs AX when AW=0
     rule_progress_90_empty_ranges, # AC>=90 -> AE-AU must be empty
+    rule_supply_no_requires_zero_values, # C29: AH=NO -> AJ=0, AL=0
     # rule_comment_coherence,     # C28: DISABLED
 ]

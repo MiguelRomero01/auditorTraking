@@ -63,17 +63,18 @@ document.addEventListener("DOMContentLoaded", function () {
     const radius = (size - stroke) / 2;
     const circumference = radius * 2 * Math.PI;
     const offset = circumference - (Math.min(pct, 100) / 100) * circumference;
-    
+
     // Color based on percentage
     let color = "#10b981"; // green
-    if (pct < 50) color = "#ef4444"; // red
+    if (pct < 50)
+      color = "#ef4444"; // red
     else if (pct < 80) color = "#f59e0b"; // yellow
-    
+
     return `
       <div class="progress-ring-wrap" style="width:${size}px; height:${size}px;">
         <svg width="${size}" height="${size}">
-          <circle class="ring-bg" cx="${size/2}" cy="${size/2}" r="${radius}" />
-          <circle class="ring-fill" cx="${size/2}" cy="${size/2}" r="${radius}" 
+          <circle class="ring-bg" cx="${size / 2}" cy="${size / 2}" r="${radius}" />
+          <circle class="ring-fill" cx="${size / 2}" cy="${size / 2}" r="${radius}" 
             stroke="${color}"
             style="stroke-dasharray: ${circumference}; stroke-dashoffset: ${offset};" />
         </svg>
@@ -186,12 +187,12 @@ document.addEventListener("DOMContentLoaded", function () {
     }
 
     // Always show/update auditor grid and global charts
-    if(auditorGrid) {
-        auditorGrid.style.display = "grid";
-        renderAuditorGrid(data.per_auditor_data, filter);
+    if (auditorGrid) {
+      auditorGrid.style.display = "grid";
+      renderAuditorGrid(data.per_auditor_data, filter);
     }
-    if(auditorGridTitle) auditorGridTitle.style.display = "flex";
-    if(globalCharts) globalCharts.style.display = "grid";
+    if (auditorGridTitle) auditorGridTitle.style.display = "flex";
+    if (globalCharts) globalCharts.style.display = "grid";
 
     // Update cards
     document.getElementById("total-activities").innerText =
@@ -208,7 +209,9 @@ document.addEventListener("DOMContentLoaded", function () {
 
     const errPct =
       summary.total_activities > 0
-        ? ((summary.rows_with_errors / summary.total_activities) * 100).toFixed(1)
+        ? ((summary.rows_with_errors / summary.total_activities) * 100).toFixed(
+            1,
+          )
         : 0;
     document.getElementById("error-percentage").innerText =
       errPct + "% del total";
@@ -216,7 +219,9 @@ document.addEventListener("DOMContentLoaded", function () {
     // C5: Tasa de error = filas con error / total actividades
     const errorRate =
       summary.total_activities > 0
-        ? ((summary.rows_with_errors / summary.total_activities) * 100).toFixed(1)
+        ? ((summary.rows_with_errors / summary.total_activities) * 100).toFixed(
+            1,
+          )
         : 0;
     document.getElementById("error-rate").innerText = errorRate + "%";
     const errorRateBar = document.getElementById("error-rate-bar");
@@ -490,14 +495,14 @@ document.addEventListener("DOMContentLoaded", function () {
     }
 
     if (!currentErrors || currentErrors.length === 0) {
-      if(countSpan) countSpan.innerText = "0";
+      if (countSpan) countSpan.innerText = "0";
       tbody.innerHTML =
         '<tr><td colspan="4" class="px-6 py-8 text-center text-gray-500 italic">No se encontraron inconsistencias. ¡Todo limpio!</td></tr>';
       if (loadMoreContainer) loadMoreContainer.style.display = "none";
       return;
     }
 
-    if(countSpan) countSpan.innerText = currentErrors.length;
+    if (countSpan) countSpan.innerText = currentErrors.length;
 
     const nextBatch = currentErrors.slice(
       visibleCount,
@@ -519,55 +524,73 @@ document.addEventListener("DOMContentLoaded", function () {
     visibleCount += nextBatch.length;
 
     if (loadMoreContainer) {
-      loadMoreContainer.style.display = visibleCount < currentErrors.length ? "block" : "none";
+      loadMoreContainer.style.display =
+        visibleCount < currentErrors.length ? "block" : "none";
     }
   }
 
   // --- Auditor Grid Helper ---
   function renderAuditorGrid(perAuditorData, activeFilter = "all") {
-      const container = document.getElementById("auditor-grid");
-      if(!container) return;
-      container.innerHTML = "";
+    const container = document.getElementById("auditor-grid");
+    if (!container) return;
+    container.innerHTML = "";
 
-      Object.entries(perAuditorData).forEach(([auditor, info]) => {
-          const card = document.createElement("div");
-          const isActive = auditor === activeFilter;
-          
-          card.classList.add("glass-card", "p-5", "flex", "items-center", "gap-5", "hover:scale-[1.02]", "transition-all", "cursor-pointer");
-          if (isActive) {
-              card.classList.add("ring-2", "ring-pink-500", "bg-pink-50/30");
-          }
+    Object.entries(perAuditorData).forEach(([auditor, info]) => {
+      const card = document.createElement("div");
+      const isActive = auditor === activeFilter;
 
-          card.onclick = () => {
-              const prevFilter = auditorFilter.value;
-              auditorFilter.value = (auditor === prevFilter) ? "all" : auditor;
-              updateUI();
-              // Switch to general tab to see the details of the filtered auditor
-              if (typeof switchTab === 'function') switchTab('general');
-              window.scrollTo({ top: 0, behavior: 'smooth' });
-          };
+      card.classList.add(
+        "glass-card",
+        "p-5",
+        "flex",
+        "items-center",
+        "gap-5",
+        "hover:scale-[1.02]",
+        "transition-all",
+        "cursor-pointer",
+      );
+      if (isActive) {
+        card.classList.add("ring-2", "ring-pink-500", "bg-pink-50/30");
+      }
 
-          const errorPct = info.total > 0 ? (info.rows_with_errors / info.total * 100) : 0;
-          let statusColor = "green";
-          let statusText = "Óptimo";
-          if (errorPct > 20) { statusColor = "red"; statusText = "Crítico"; }
-          else if (errorPct > 10) { statusColor = "orange"; statusText = "Alerta"; }
-          else if (errorPct > 0) { statusColor = "yellow"; statusText = "Regular"; }
+      card.onclick = () => {
+        const prevFilter = auditorFilter.value;
+        auditorFilter.value = auditor === prevFilter ? "all" : auditor;
+        updateUI();
+        // Switch to general tab to see the details of the filtered auditor
+        if (typeof switchTab === "function") switchTab("general");
+        window.scrollTo({ top: 0, behavior: "smooth" });
+      };
 
-          const statusBadge = `
+      const errorPct =
+        info.total > 0 ? (info.rows_with_errors / info.total) * 100 : 0;
+      let statusColor = "green";
+      let statusText = "Óptimo";
+      if (errorPct > 20) {
+        statusColor = "red";
+        statusText = "Crítico";
+      } else if (errorPct > 10) {
+        statusColor = "orange";
+        statusText = "Alerta";
+      } else if (errorPct > 0) {
+        statusColor = "yellow";
+        statusText = "Regular";
+      }
+
+      const statusBadge = `
             <span class="px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider
-              ${statusColor === 'green' ? 'bg-green-100 text-green-700' : ''}
-              ${statusColor === 'yellow' ? 'bg-yellow-100 text-yellow-700' : ''}
-              ${statusColor === 'orange' ? 'bg-orange-100 text-orange-700' : ''}
-              ${statusColor === 'red' ? 'bg-red-100 text-red-700' : ''}
+              ${statusColor === "green" ? "bg-green-100 text-green-700" : ""}
+              ${statusColor === "yellow" ? "bg-yellow-100 text-yellow-700" : ""}
+              ${statusColor === "orange" ? "bg-orange-100 text-orange-700" : ""}
+              ${statusColor === "red" ? "bg-red-100 text-red-700" : ""}
             ">${statusText}</span>
           `;
 
-          card.innerHTML = `
+      card.innerHTML = `
               <div class="flex-shrink-0">${getProgressRing(info.progress, 70)}</div>
               <div class="flex-1 min-w-0">
                   <div class="flex items-center justify-between gap-2 mb-1">
-                      <h4 class="font-extrabold text-gray-800 truncate ${isActive ? 'text-pink-700' : ''}">${auditor}</h4>
+                      <h4 class="font-extrabold text-gray-800 truncate ${isActive ? "text-pink-700" : ""}">${auditor}</h4>
                       ${statusBadge}
                   </div>
                   <div class="grid grid-cols-2 gap-y-1 text-[11px] text-gray-500">
@@ -578,8 +601,8 @@ document.addEventListener("DOMContentLoaded", function () {
                   </div>
               </div>
           `;
-          container.appendChild(card);
-      });
+      container.appendChild(card);
+    });
   }
 
   // --- Event listeners ---

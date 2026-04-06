@@ -29,6 +29,47 @@ def rule_supply_si_requires_soportes(row: pd.Series, df: pd.DataFrame) -> List[V
     return []
 
 
+def rule_supply_no_requires_zero_values(row: pd.Series, df: pd.DataFrame) -> List[ValidationResult]:
+    """C29: If Suministró = NO, then AJ (Soportes) and AL (Entregables) must be 0."""
+    supply = _val(row, "¿La dependencia suministro información?").upper()
+    if "NO" not in supply: return []
+
+    errors = []
+    # AJ: Cantidad de Soportes cargados por la Dependencia
+    soportes = _num(row, "Cantidad de Soportes cargados por la Dependencia")
+    # AL: No. de entregables asociados a la Actividad
+    entregables = _num(row, "No. de entregables asociados a la Actividad")
+
+    if not np.isnan(soportes) and soportes != 0:
+        errors.append(ValidationResult(
+            False, "Inconsistencia en suministro",
+            f"Suministró información = NO, pero Cantidad de Soportes (AJ) no es cero (es {int(soportes)})"
+        ))
+
+    if not np.isnan(entregables) and entregables != 0:
+        errors.append(ValidationResult(
+            False, "Inconsistencia en suministro",
+            f"Suministró información = NO, pero No. de entregables asociados (AL) no es cero (es {int(entregables)})"
+        ))
+
+    # AS: Fecha de Elaboración o Formalización del Entregable evaluado Oportunidad
+    col_as = "Fecha de Elaboración o Formalización del Entregable evaluado Oportunidad"
+    val_as = _val(row, col_as)
+    
+    # Fallback to "Oportunidad" if the long name is completely missing/empty and "Oportunidad" exists
+    if not val_as and "Oportunidad" in row.index:
+        val_as = _val(row, "Oportunidad")
+        col_as = "Oportunidad"
+
+    if "NO APLICA" not in val_as.upper():
+         errors.append(ValidationResult(
+            False, "Inconsistencia en suministro",
+            f"Suministró información = NO, pero '{col_as}' (AS) no dice 'No aplica' (dice: '{_display(val_as)}')"
+        ))
+
+    return errors
+
+
 def rule_soportes_vs_entregables(row: pd.Series, df: pd.DataFrame) -> List[ValidationResult]:
     """Soportes vs Entregables: 
     AL (Entregables asociados) cannot exceed AJ (Soportes cargados).
