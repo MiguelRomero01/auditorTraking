@@ -3,7 +3,7 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 from typing import Optional
 
 class Settings(BaseSettings):
-    GOOGLE_SHEET_ID: str = "1ee33pBrtBoF-vXHTx_VIiAi5rFq0XRabHVqjFScL1LY"
+    GOOGLE_SHEET_ID: str = "1_p9W97qfwQlDYv9kf7zCT5dcqi9GGYdY"
     GOOGLE_SHEET_ID2: Optional[str] = None
     GOOGLE_CREDENTIALS_PATH: str = "credentials/service_account.json"
     DEBUG: bool = True
