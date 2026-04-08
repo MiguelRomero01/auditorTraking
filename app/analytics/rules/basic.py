@@ -10,18 +10,31 @@ from app.utils.helpers import (
 )
 
 def rule_empty_cells(row: pd.Series, df: pd.DataFrame) -> List[ValidationResult]:
-    """Rule 5: No empty cells in required columns.
-    C4 exception: when AD (¿El Auditor debe hacer Seguimiento?) = 'NO', skip this rule
-    because the auditor did not perform follow-up in this period."""
-    followup = _val(row, "¿El Auditor debe hacer Seguimiento en este Periodo?").upper()
-    if followup == "NO":
-        return []  # C4: No tracking required — cells may be empty
+    """Rule 5: No empty cells in the required follow-up range (AE-AY).
+    Range A-AD is now optional per user request.
+    Exception: If ID contains '2026', skip this rule (columns must be empty)."""
+    id_val = _val(row, "ID") or _val(row, "ID Actividad")
+    if "2026" in id_val:
+        return []
+    
+    from app.utils.helpers import FOLLOWUP_COLUMNS
+    
     errors = []
+    
+    # Range A-AD is now optional (REQUIRED_COLUMNS is empty)
     for col in REQUIRED_COLUMNS:
         if col in row.index:
             v = _val(row, col)
             if not v:
-                errors.append(ValidationResult(False, "Celdas vacías", f"Columna '{col}' está vacía"))
+                errors.append(ValidationResult(False, "Celdas vacías", f"Columna base '{col}' está vacía"))
+                
+    # Range AE-AY: MUST be filled
+    for col in FOLLOWUP_COLUMNS:
+        if col in row.index:
+            v = _val(row, col)
+            if not v:
+                errors.append(ValidationResult(False, "Celdas vacías", f"Columna de seguimiento '{col}' está vacía"))
+                
     return errors
 
 def rule_unique_llave(row: pd.Series, df: pd.DataFrame) -> List[ValidationResult]:
@@ -83,20 +96,36 @@ def rule_month_name(row: pd.Series, df: pd.DataFrame) -> List[ValidationResult]:
     return []
 
 def rule_auditor_initials(row: pd.Series, df: pd.DataFrame) -> List[ValidationResult]:
-    """Rule 5: Auditor name must be initials."""
+    """Rule 5: Auditor name (AF) must match the initials indicated in the sheet title."""
+    sheet_title = _val(row, "Auditor_Sheet")
+    if sheet_title == "ARS" or not sheet_title:
+        return []
+
     col_candidates = [
         "Nombre Auditor\n(quien realiza seguimiento)",
         "Nombre Auditor (quien realiza seguimiento)",
     ]
     val = ""
+    col_found = "Nombre Auditor"
     for c in col_candidates:
         if c in row.index:
             val = _val(row, c)
+            col_found = c
             break
+    
     if not val:
         return []
+        
+    # Check if value matches the sheet title (initials)
+    if val.upper() != sheet_title.upper():
+        return [ValidationResult(
+            False, 
+            "Error en Nombre", 
+            f"El nombre en AF ({_display(val)}) no coincide con las iniciales del auditor ({sheet_title})")]
+
     if not re.match(r"^[A-Z]{2,5}$", val):
-        return [ValidationResult(False, "Error en Nombre", f"Iniciales inválidas: '{_display(val)}'")]
+        return [ValidationResult(False, "Error en Nombre", f"Formato de iniciales inválido: '{_display(val)}'")]
+        
     return []
 
 def rule_followup_date(row: pd.Series, df: pd.DataFrame) -> List[ValidationResult]:

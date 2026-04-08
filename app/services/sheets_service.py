@@ -51,11 +51,11 @@ class GoogleSheetsService:
         # Fallback: if there is a slash, take the part before it
         return input_str.split('/')[0].strip()
 
-    async def fetch_all_data(self) -> pd.DataFrame:
+    async def fetch_all_data(self, sheet_id_or_url: Optional[str] = None) -> pd.DataFrame:
         client = await asyncio.to_thread(self._get_client)
-        raw_id = settings.GOOGLE_SHEET_ID
+        raw_id = sheet_id_or_url or settings.GOOGLE_SHEET_ID
         if not raw_id:
-            raise Exception("No se ha configurado GOOGLE_SHEET_ID en el archivo .env")
+            raise Exception("No se proporcionó un ID o URL del documento")
             
         target_id = self._extract_id(raw_id)
         

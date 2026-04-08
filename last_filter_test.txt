@@ -1,0 +1,5 @@
+﻿Testing filtering by 'Tipo' == 'Observaci¾n'...
+Total activities: 2
+PASS: Filtering reduced 4 rows to 2 'Observaci¾n' rows.
+Auditor counts: {'SKQR': 1, 'VMV': 1}
+PASS: Auditor counts only reflect filtered rows.

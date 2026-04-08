@@ -19,9 +19,7 @@ document.addEventListener("DOMContentLoaded", function () {
   const PAGE_SIZE = 25;
 
   // --- Lottie initialization (optional) ---
-  // Place your Lottie JSON file at /static/js/loading.json to enable animation.
-  // Until then, the CSS spinner is used as fallback.
-  lottieContainer.style.display = "none"; // Hidden by default
+  lottieContainer.style.display = "none";
 
   fetch("/static/js/loading.json", { method: "HEAD" })
     .then((res) => {
@@ -37,17 +35,132 @@ document.addEventListener("DOMContentLoaded", function () {
         });
       }
     })
-    .catch(() => {
-      /* Lottie file not found, CSS spinner serves as fallback */
-    });
+    .catch(() => {});
 
   // --- Loading helpers ---
+  function updateScrollLock() {
+    const isLoadingVisible = !loadingOverlay.classList.contains("hidden");
+    const isLandingVisible =
+      landingPage && !landingPage.classList.contains("hidden");
+    if (isLoadingVisible || isLandingVisible) {
+      document.body.classList.add("no-scroll");
+    } else {
+      document.body.classList.remove("no-scroll");
+    }
+  }
+
   function showLoading() {
     loadingOverlay.classList.remove("hidden");
+    updateScrollLock();
   }
   function hideLoading() {
     loadingOverlay.classList.add("hidden");
+    updateScrollLock();
   }
+
+  // --- Landing Page Helpers ---
+  const landingPage = document.getElementById("landing-page");
+  const linkForm = document.getElementById("link-form-container");
+  const sheetUrlInput = document.getElementById("sheet-url");
+
+  function showLanding() {
+    landingPage.classList.remove("hidden");
+    updateScrollLock();
+  }
+  function hideLanding() {
+    landingPage.classList.add("hidden");
+    updateScrollLock();
+  }
+
+  window.showLinkPrompt = function () {
+    linkForm.classList.remove("hidden");
+  };
+  window.hideLinkPrompt = function () {
+    linkForm.classList.add("hidden");
+  };
+
+  window.handleFileUpload = async function (event) {
+    const file = event.target.files[0];
+    if (!file) return;
+
+    const formData = new FormData();
+    formData.append("file", file);
+
+    showLoading();
+    try {
+      const response = await fetch("/api/upload", {
+        method: "POST",
+        body: formData,
+      });
+      const result = await response.json();
+      if (result.status === "success") {
+        hideLanding();
+        await fetchData(true);
+      } else {
+        alert("Error: " + result.detail);
+      }
+    } catch (error) {
+      alert("Fallo al subir el archivo: " + error.message);
+    } finally {
+      hideLoading();
+      event.target.value = "";
+    }
+  };
+
+  window.submitLink = async function () {
+    const url = sheetUrlInput.value.trim();
+    if (!url) {
+      alert("Por favor ingresa un link válido");
+      return;
+    }
+
+    const formData = new FormData();
+    formData.append("url", url);
+
+    showLoading();
+    try {
+      const response = await fetch("/api/load-link", {
+        method: "POST",
+        body: formData,
+      });
+      const result = await response.json();
+      if (result.status === "success") {
+        hideLanding();
+        await fetchData(true);
+      } else {
+        alert("Error: " + result.detail);
+      }
+    } catch (error) {
+      alert("Fallo al cargar el link: " + error.message);
+    } finally {
+      hideLoading();
+    }
+  };
+
+  window.loadPredefined = async function () {
+    if (isFetching) return;
+    console.log("Loading predefined source...");
+    showLoading();
+    try {
+      const response = await fetch("/api/refresh", { method: "POST" });
+      const result = await response.json();
+      console.log("Refresh response:", result);
+
+      if (result.status === "success") {
+        // We don't hide landing yet; fetchData will handle it when content is ready
+        await fetchData(true);
+      } else {
+        alert(
+          "Error al cargar predefinido: " + (result.detail || result.message),
+        );
+        hideLoading();
+      }
+    } catch (error) {
+      console.error("Predefined load failed", error);
+      alert("Fallo al conectar con el servidor.");
+      hideLoading();
+    }
+  };
 
   // --- Sanitize display values ---
   function sanitize(val) {
@@ -64,11 +177,9 @@ document.addEventListener("DOMContentLoaded", function () {
     const circumference = radius * 2 * Math.PI;
     const offset = circumference - (Math.min(pct, 100) / 100) * circumference;
 
-    // Color based on percentage
-    let color = "#10b981"; // green
-    if (pct < 50)
-      color = "#ef4444"; // red
-    else if (pct < 80) color = "#f59e0b"; // yellow
+    let color = "#10b981";
+    if (pct < 50) color = "#ef4444";
+    else if (pct < 80) color = "#f59e0b";
 
     return `
       <div class="progress-ring-wrap" style="width:${size}px; height:${size}px;">
@@ -86,14 +197,46 @@ document.addEventListener("DOMContentLoaded", function () {
     `;
   }
 
+  let isFetching = false;
+
   // --- Data fetching ---
-  async function fetchData() {
+  async function fetchData(skipStatus = false) {
+    if (isFetching) return;
+    isFetching = true;
+
+    if (!skipStatus) {
+      console.log("Checking session status...");
+      try {
+        const statusRes = await fetch("/api/status");
+        const status = await statusRes.json();
+        if (!status.is_loaded) {
+          console.log("No session found, showing landing page.");
+          showLanding();
+          hideLoading();
+          isFetching = false;
+          return;
+        }
+      } catch (e) {
+        console.error("Status check failed", e);
+      }
+    }
+
+    console.log("Fetching dashboard data...");
     showLoading();
     try {
       const response = await fetch("/api/data");
-      cachedData = await response.json();
+      const result = await response.json();
 
-      // Populate filter dropdown if empty
+      if (result.is_loaded === false) {
+        console.log("API returned not loaded state.");
+        showLanding();
+        isFetching = false;
+        return;
+      }
+
+      console.log("Data received, updating UI.");
+      cachedData = result;
+
       if (auditorFilter.options.length <= 1) {
         Object.keys(cachedData.auditors)
           .sort()
@@ -107,13 +250,15 @@ document.addEventListener("DOMContentLoaded", function () {
       }
 
       updateUI();
+      hideLanding();
+      // Explicitly hide landing page overlay
+      landingPage.classList.add("hidden");
     } catch (error) {
       console.error("Error fetching data:", error);
-      alert(
-        "Error al conectar con la API. Verifica que el servidor esté corriendo.",
-      );
+      alert("Error al conectar con la API.");
     } finally {
       hideLoading();
+      isFetching = false;
     }
   }
 
@@ -127,15 +272,16 @@ document.addEventListener("DOMContentLoaded", function () {
       const response = await fetch("/api/refresh", { method: "POST" });
       const result = await response.json();
       if (result.status === "success") {
-        // Reset dropdown so it repopulates
+        const currentFilter = auditorFilter.value;
         while (auditorFilter.options.length > 1) auditorFilter.remove(1);
-        await fetchData();
+        await fetchData(true);
+        auditorFilter.value = currentFilter;
       } else {
-        throw new Error(result.detail);
+        throw new Error(result.detail || result.message);
       }
     } catch (error) {
       console.error("Refresh failed:", error);
-      alert("Fallo al refrescar desde Google Sheets: " + error.message);
+      alert("Fallo al refrescar: " + error.message);
     } finally {
       refreshBtn.classList.remove("opacity-50", "pointer-events-none");
       refreshBtn.innerHTML = `
@@ -175,18 +321,17 @@ document.addEventListener("DOMContentLoaded", function () {
         avg_progress: auditorInfo.progress,
         activities_with_entregable: auditorInfo.activities_with_entregable,
         activities_at_90_plus: auditorInfo.activities_at_90_plus,
+        total_alertas: auditorInfo.activities_alertas,
         last_update: data.summary.last_update,
       };
       errors = (data.error_list || []).filter((e) => e.auditor === filter);
 
-      // Recalculate error types for this auditor
       errorTypes = {};
       errors.forEach((e) => {
         errorTypes[e.type] = (errorTypes[e.type] || 0) + 1;
       });
     }
 
-    // Always show/update auditor grid and global charts
     if (auditorGrid) {
       auditorGrid.style.display = "grid";
       renderAuditorGrid(data.per_auditor_data, filter);
@@ -194,7 +339,6 @@ document.addEventListener("DOMContentLoaded", function () {
     if (auditorGridTitle) auditorGridTitle.style.display = "flex";
     if (globalCharts) globalCharts.style.display = "grid";
 
-    // Update cards
     document.getElementById("total-activities").innerText =
       summary.total_activities;
     document.getElementById("total-errors").innerText =
@@ -216,7 +360,6 @@ document.addEventListener("DOMContentLoaded", function () {
     document.getElementById("error-percentage").innerText =
       errPct + "% del total";
 
-    // C5: Tasa de error = filas con error / total actividades
     const errorRate =
       summary.total_activities > 0
         ? ((summary.rows_with_errors / summary.total_activities) * 100).toFixed(
@@ -227,23 +370,21 @@ document.addEventListener("DOMContentLoaded", function () {
     const errorRateBar = document.getElementById("error-rate-bar");
     if (errorRateBar) errorRateBar.style.width = Math.min(errorRate, 100) + "%";
 
-    // C8: Actividades >= 90%
-    const at90 = summary.activities_at_90_plus ?? 0;
-    document.getElementById("activities-at-90").innerText = at90;
-
-    // C9: Actividades con entregable
-    const withEntregable = summary.activities_with_entregable ?? 0;
+    document.getElementById("activities-at-90").innerText =
+      summary.activities_at_90_plus ?? 0;
     document.getElementById("activities-with-entregable").innerText =
-      withEntregable;
+      summary.activities_with_entregable ?? 0;
+
+    const totalAlertas = summary.total_alertas ?? 0;
+    const alertasEl = document.getElementById("total-alertas");
+    if (alertasEl) alertasEl.innerText = totalAlertas;
 
     lastUpdateSpan.innerText = "Corte: " + summary.last_update;
 
-    // Update Charts
     renderAuditorChart(data.auditors, filter);
     renderErrorsByAuditorChart(data.errors_by_auditor, filter);
     renderErrorTypeChart(errorTypes);
 
-    // Auditor-specific charts
     const detailSection = document.getElementById("auditor-detail-section");
     if (filter !== "all") {
       detailSection.style.display = "grid";
@@ -255,9 +396,8 @@ document.addEventListener("DOMContentLoaded", function () {
       detailSection.style.display = "none";
     }
 
-    // Update Table - Reset pagination
     currentErrors = errors;
-    renderErrorTable(true); // true = reset
+    renderErrorTable(true);
   }
 
   // --- Charts ---
@@ -399,9 +539,6 @@ document.addEventListener("DOMContentLoaded", function () {
       "#14b8a6",
       "#f97316",
       "#e11d48",
-      "#84cc16",
-      "#06b6d4",
-      "#9ca3af",
     ];
 
     auditorMonthChart = new Chart(ctx, {
@@ -436,7 +573,6 @@ document.addEventListener("DOMContentLoaded", function () {
     const labels = Object.keys(byMonth);
     const values = Object.values(byMonth);
 
-    // Cumulative line for evolution
     let cumulative = [];
     let acc = 0;
     values.forEach((v) => {
@@ -475,15 +611,12 @@ document.addEventListener("DOMContentLoaded", function () {
         responsive: true,
         maintainAspectRatio: false,
         scales: { y: { beginAtZero: true } },
-        plugins: {
-          legend: { position: "bottom" },
-        },
+        plugins: { legend: { position: "bottom" } },
       },
     });
   }
 
   // --- Error table (with batch loading) ---
-
   function renderErrorTable(reset = false) {
     const tbody = document.getElementById("error-table-body");
     const countSpan = document.getElementById("error-count");
@@ -497,7 +630,7 @@ document.addEventListener("DOMContentLoaded", function () {
     if (!currentErrors || currentErrors.length === 0) {
       if (countSpan) countSpan.innerText = "0";
       tbody.innerHTML =
-        '<tr><td colspan="4" class="px-6 py-8 text-center text-gray-500 italic">No se encontraron inconsistencias. ¡Todo limpio!</td></tr>';
+        '<tr><td colspan="4" class="px-6 py-8 text-center text-gray-500 italic">No se encontraron inconsistencias.</td></tr>';
       if (loadMoreContainer) loadMoreContainer.style.display = "none";
       return;
     }
@@ -549,15 +682,13 @@ document.addEventListener("DOMContentLoaded", function () {
         "transition-all",
         "cursor-pointer",
       );
-      if (isActive) {
+      if (isActive)
         card.classList.add("ring-2", "ring-pink-500", "bg-pink-50/30");
-      }
 
       card.onclick = () => {
         const prevFilter = auditorFilter.value;
         auditorFilter.value = auditor === prevFilter ? "all" : auditor;
         updateUI();
-        // Switch to general tab to see the details of the filtered auditor
         if (typeof switchTab === "function") switchTab("general");
         window.scrollTo({ top: 0, behavior: "smooth" });
       };
@@ -577,48 +708,81 @@ document.addEventListener("DOMContentLoaded", function () {
         statusText = "Regular";
       }
 
-      const statusBadge = `
-            <span class="px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider
-              ${statusColor === "green" ? "bg-green-100 text-green-700" : ""}
-              ${statusColor === "yellow" ? "bg-yellow-100 text-yellow-700" : ""}
-              ${statusColor === "orange" ? "bg-orange-100 text-orange-700" : ""}
-              ${statusColor === "red" ? "bg-red-100 text-red-700" : ""}
-            ">${statusText}</span>
-          `;
-
       card.innerHTML = `
-              <div class="flex-shrink-0">${getProgressRing(info.progress, 70)}</div>
-              <div class="flex-1 min-w-0">
-                  <div class="flex items-center justify-between gap-2 mb-1">
-                      <h4 class="font-extrabold text-gray-800 truncate ${isActive ? "text-pink-700" : ""}">${auditor}</h4>
-                      ${statusBadge}
-                  </div>
-                  <div class="grid grid-cols-2 gap-y-1 text-[11px] text-gray-500">
-                      <div>Total: <strong class="text-gray-700">${info.total}</strong></div>
-                      <div>Limpias: <strong class="text-gray-700">${info.total - info.rows_with_errors}</strong></div>
-                      <div>Errores: <strong class="text-pink-600">${info.rows_with_errors}</strong></div>
-                      <div>Tasa: <strong class="text-gray-700">${errorPct.toFixed(1)}%</strong></div>
-                  </div>
-              </div>
-          `;
+        <div class="flex-shrink-0">${getProgressRing(info.progress, 70)}</div>
+        <div class="flex-1 min-w-0">
+            <div class="flex items-center justify-between gap-2 mb-1">
+                <h4 class="font-extrabold text-gray-800 truncate ${isActive ? "text-pink-700" : ""}">${auditor}</h4>
+                <span class="px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider
+                  ${statusColor === "green" ? "bg-green-100 text-green-700" : ""}
+                  ${statusColor === "yellow" ? "bg-yellow-100 text-yellow-700" : ""}
+                  ${statusColor === "orange" ? "bg-orange-100 text-orange-700" : ""}
+                  ${statusColor === "red" ? "bg-red-100 text-red-700" : ""}
+                ">${statusText}</span>
+            </div>
+            <div class="grid grid-cols-2 gap-y-1 text-[11px] text-gray-500">
+                <div>Total: <strong class="text-gray-700">${info.total}</strong></div>
+                <div>Limpias: <strong class="text-gray-700">${info.total - info.rows_with_errors}</strong></div>
+                <div>Errores: <strong class="text-pink-600">${info.rows_with_errors}</strong></div>
+                <div>Tasa: <strong class="text-gray-700">${errorPct.toFixed(1)}%</strong></div>
+            </div>
+        </div>
+      `;
       container.appendChild(card);
     });
   }
 
-  // --- Event listeners ---
+  const changeSourceBtn = document.getElementById("change-source-btn");
+  if (changeSourceBtn) {
+    changeSourceBtn.addEventListener("click", async () => {
+      if (
+        confirm(
+          "¿Estás seguro de que quieres cambiar la fuente de datos? Se perderá la sesión actual.",
+        )
+      ) {
+        showLoading();
+        try {
+          const res = await fetch("/api/reset", { method: "POST" });
+          const result = await res.json();
+          if (result.status === "success") {
+            // Clear current state and show landing
+            cachedData = null;
+            while (auditorFilter.options.length > 1) auditorFilter.remove(1);
+            showLanding();
+          }
+        } catch (e) {
+          alert("Error al reiniciar la sesión");
+        } finally {
+          hideLoading();
+        }
+      }
+    });
+  }
+
+  window.exportFindings = function () {
+    const auditor = auditorFilter.value;
+    const url = `/api/export/findings?auditor=${encodeURIComponent(auditor)}`;
+
+    // Trigger download
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `Hallazgos_${auditor}_${new Date().toISOString().slice(0, 10)}.xlsx`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
   refreshBtn.addEventListener("click", refreshData);
   auditorFilter.addEventListener("change", updateUI);
 
   const loadMoreBtn = document.getElementById("load-more-btn");
-  if (loadMoreBtn) {
+  if (loadMoreBtn)
     loadMoreBtn.addEventListener("click", () => renderErrorTable(false));
-  }
 
   const observer = new IntersectionObserver(
     (entries) => {
-      if (entries[0].isIntersecting && visibleCount < currentErrors.length) {
+      if (entries[0].isIntersecting && visibleCount < currentErrors.length)
         renderErrorTable(false);
-      }
     },
     { threshold: 0.1 },
   );

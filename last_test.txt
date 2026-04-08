@@ -1,0 +1,7 @@
+﻿Testing AW vs AX rules (C6 and C7)...
+PASS: Case 1 (AW=0, AX=10, AC=50)
+PASS: Case 2 (AW=15, AX=10, AC=50)
+PASS: Case 3 (AW=10, AX=10, AC=50)
+PASS: Case 4 (AW=5, AX=10, AC=50)
+PASS: Case 5 (AW=0, AX=0, AC=50)
+PASS: Case 6 (AW=5, AX=10, AC=95)

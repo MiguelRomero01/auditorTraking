@@ -7,6 +7,7 @@ class DataCache:
     _cached_data: Optional[Dict[str, Any]] = None
     _last_updated: float = 0
     _raw_df: Optional[pd.DataFrame] = None
+    metadata: Dict[str, Any] = {}
 
     def __new__(cls):
         if cls._instance is None:
@@ -23,6 +24,12 @@ class DataCache:
 
     def is_empty(self) -> bool:
         return self._cached_data is None
+
+    def clear(self):
+        self._cached_data = None
+        self._raw_df = None
+        self._last_updated = 0
+        self.metadata = {}
 
     def last_updated_str(self) -> str:
         if self._last_updated == 0:

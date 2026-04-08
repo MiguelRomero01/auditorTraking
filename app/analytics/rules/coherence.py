@@ -1,31 +1,59 @@
 import pandas as pd
-import numpy as np
+import re
 from typing import List
 from app.analytics.models import ValidationResult
-from app.utils.helpers import _val, _num
+from app.utils.helpers import _val
+
+# Map of 'Bad' ratings (fragments in AR) to 'Forbidden' positive words in AV
+# We use regex word boundaries \b to ensure "inoportuna" doesn't match "oportuna".
+_NEGATIVE_COHERENCE_MAP = {
+    "inoportun": [r"\boportuna\b", r"\boportunidad\b"],
+    "insuficiente": [r"\bsuficiente\b"],
+    "no adecuada": [r"\badecuada\b"],
+    "no adecuado": [r"\badecuado\b"],
+}
 
 def rule_comment_coherence(row: pd.Series, df: pd.DataFrame) -> List[ValidationResult]:
-    """Rule 15: Check coherence between data and auditor comment."""
-    comment = _val(row, "Comentarios del Auditor").lower()
-    if not comment: return []
+    """C28: Inverted coherence check.
+    If the rating in AR is negative (Bad), the comment in AV must NOT contain
+    positive words that contradict that rating."""
+
+    av_val = _val(row, "Comentarios del auditor").lower()
+    if not av_val:
+        av_val = _val(row, "Comentarios del Auditor").lower()
+    
+    if not av_val or av_val.lower() in ("nan", "none", ""):
+        return []
+
     errors = []
-    entregables = _num(row, "No. de entregables asociados a la Actividad")
-    if not np.isnan(entregables) and entregables == 0:
-        keywords_no_evidence = ["no se evidencia", "no aportó", "no realizó el cargue"]
-        if not any(kw in comment for kw in keywords_no_evidence):
-            errors.append(ValidationResult(False, "Coherencia de comentario", "Entregables=0, pero el comentario no menciona falta de evidencias"))
-    suf_candidates = [c for c in row.index if "Suficiente" in str(c)]
-    if suf_candidates:
-        suf = _val(row, suf_candidates[0]).upper()
-        if suf == "SI":
-            keywords_compliance = ["cumplimiento", "se cumplió", "cumplió"]
-            if not any(kw in comment for kw in keywords_compliance):
-                errors.append(ValidationResult(False, "Coherencia de comentario", "Suficiente=SI, pero el comentario no menciona cumplimiento"))
-    oport_candidates = [c for c in row.index if "Oportunidad" in str(c) and "Fecha" not in str(c)]
-    for oc in oport_candidates:
-        op = _val(row, oc).lower()
-        if "inoportuna" in op:
-            if "inoportuna" not in comment and "falta de oportunidad" not in comment:
-                errors.append(ValidationResult(False, "Coherencia de comentario", "Oportunidad='Inoportuna', pero el comentario no lo menciona"))
-            break
+
+    # Search for column AR: Calificacion or Oportunidad (not Fecha)
+    ar_candidates = [
+        c for c in row.index
+        if (
+            "calificaci" in str(c).lower() or
+            ("oportunidad" in str(c).lower() and "fecha" not in str(c).lower())
+        )
+    ]
+
+    for ar_col in ar_candidates:
+        ar_val = _val(row, ar_col).strip()
+        if not ar_val:
+            continue
+
+        ar_lower = ar_val.lower()
+
+        # Check for contradictions
+        for ar_bad_fragment, forbidden_patterns in _NEGATIVE_COHERENCE_MAP.items():
+            if ar_bad_fragment in ar_lower:
+                for pattern in forbidden_patterns:
+                    # Search using word boundaries so "inoportuna" != hit for "oportuna"
+                    if re.search(pattern, av_val, re.IGNORECASE):
+                        errors.append(ValidationResult(
+                            False,
+                            "Coherencia de comentario",
+                            f"La columna '{ar_col}' dice '{ar_val}', pero el comentario contiene '{pattern.strip(r'\\b')}', lo cual es contradictorio."
+                        ))
+                        break
+
     return errors

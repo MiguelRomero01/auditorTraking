@@ -20,13 +20,31 @@ GRAY_COLUMNS = {
     "Sheet_Row",
 }
 
-REQUIRED_COLUMNS = [
-    "ID", "Titulo del Trabajo", "Proceso Origen",
-    "Tipo", "Connotación Observacion", "Dependencia",
-    "ID Observacion", "ID Acción", "Acción",
-    "ID Actividad", "LLAVE",
-    "Descripción de la actividad", "Entregable", "Cantidad de Entregables",
+# REQUIRED_COLUMNS (A-AD) are now optional per user request ("AE hacia atrás puede estar vacío").
+REQUIRED_COLUMNS = []
+
+# Range AE-AY: MUST be filled with data.
+FOLLOWUP_COLUMNS = [
     "Periodo seguimiento",
+    "Nombre Auditor\n(quien realiza seguimiento)",
+    "Fecha de seguimiento por parte del auditor",
+    "Evidencia de Seguimiento",
+    "Pertinencia",
+    "Cantidad de Soportes cargados por la Dependencia",
+    "Suficiencia de Soportes",
+    "No. de entregables asociados a la Actividad",
+    "Cantidad entregables presentados",
+    "Tipo de Error",
+    "Identificación de posibles errores (Cualitativo)",
+    "No. De entregables pendientes",
+    "Porcentaje de avance de los entregables",
+    "Calificación Parcial",
+    "Oportunidad",
+    "Enlace evidencia del seguimiento",
+    "Comentarios del auditor",
+    "Porcentaje avance periodo evaluado",
+    "Porcentaje avance anterior",
+    "Validación %",
 ]
 
 VALID_MONTH_NAMES = [

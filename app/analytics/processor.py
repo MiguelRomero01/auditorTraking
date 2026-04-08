@@ -25,6 +25,30 @@ class DataProcessor:
         # Replace empty strings with NaN for consistent handling
         df = df.replace('', np.nan)
 
+        # --- Count "Alertas" before filtering for "Observación" ---
+        total_alertas = 0
+        alertas_per_auditor = {}
+        tipo_col = find_column_fuzzy(df, "Tipo")
+        if tipo_col:
+            # We look for "ALERTA" or "ALERTAS" (case-insensitive, stripped)
+            tipo_series = df[tipo_col].astype(str).str.strip().str.upper()
+            alertas_mask = tipo_series.str.contains("ALERTA", na=False)
+            
+            # Global count
+            total_alertas = int(alertas_mask.sum())
+            
+            # Per-auditor count
+            alertas_df = df[alertas_mask]
+            if not alertas_df.empty:
+                alertas_per_auditor = alertas_df.groupby("Auditor_Sheet").size().to_dict()
+
+            # Now filter for "Observación" (case-insensitive)
+            # We look for "OBSERV" to cover "Observación", "Observacion", "Observaciones"
+            df = df[tipo_series.str.contains("OBSERV", na=False)]
+            logger.info(f"Counted {total_alertas} alerts and filtered data to {len(df)} observations.")
+        else:
+            logger.warning("Column 'Tipo' not found for filtering")
+
         all_errors: List[Dict[str, Any]] = []
         # Support for rows without auditor
         auditor_names = df["Auditor_Sheet"].unique()
@@ -83,9 +107,20 @@ class DataProcessor:
             df[progress_col] = pd.to_numeric(
                 df[progress_col].astype(str).str.replace("%", ""), errors="coerce"
             ).fillna(0)
+
+            # Excel stores percentages as decimals (0.9 = 90%) while
+            # Google Sheets returns them as strings ("90%").
+            # If all values are between 0 and 1, scale them up to 0-100.
+            col_max = df[progress_col].max()
+            if col_max <= 1.5:
+                logger.info(f"[DIAG] Percentage column appears to be in decimal format (max={col_max:.4f}), multiplying by 100.")
+                df[progress_col] = df[progress_col] * 100
+
             progress_90_count = int((df[progress_col] >= 90).sum())
+            logger.info(f"[DIAG] progress_col='{progress_col}', max={df[progress_col].max():.2f}, values>=90: {progress_90_count}")
         else:
             logger.warning("Column 'Porcentaje avance al corte' not found in data")
+            logger.info(f"[DIAG] Available columns: {list(df.columns)}")
 
         activities_with_entregable = 0
         if entregable_col:
@@ -132,6 +167,7 @@ class DataProcessor:
                 "progress": round(a_avg_progress, 2),
                 "activities_with_entregable": a_with_entregable,
                 "activities_at_90_plus": a_at90,
+                "activities_alertas": int(alertas_per_auditor.get(auditor_str, 0)),
             }
 
         response = {
@@ -147,6 +183,7 @@ class DataProcessor:
                 "activities_at_90_plus": progress_90_count,
                 # C9: activities that have at least 1 entregable (AJ > 0)
                 "activities_with_entregable": activities_with_entregable,
+                "total_alertas": total_alertas,
                 "last_update": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
             },
             "auditors": {str(k): v for k, v in auditor_load.items()},
@@ -172,6 +209,7 @@ class DataProcessor:
                 "error_rate_pct": 0,
                 "activities_at_90_plus": 0,
                 "activities_with_entregable": 0,
+                "total_alertas": 0,
                 "last_update": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
             },
             "auditors": {},

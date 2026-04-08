@@ -143,7 +143,7 @@ def rule_progress_comparison(row: pd.Series, df: pd.DataFrame) -> List[Validatio
     current = _num(row, "Porcentaje avance periodo evaluado")
     previous = _num(row, "Porcentaje avance anterior")
     if np.isnan(current) or np.isnan(previous): return []
-    if previous > current:
+    if current != 0 and previous > current:
         return [ValidationResult(False, "Error en avance", f"Avance anterior (AX={previous}%) es mayor que el actual (AW={current}%)")]
     return []
 
@@ -194,35 +194,44 @@ def rule_validacion_vs_avance_anterior(row: pd.Series, df: pd.DataFrame) -> List
 
 
 def rule_progress_90_empty_ranges(row: pd.Series, df: pd.DataFrame) -> List[ValidationResult]:
-    """When AC (avance al corte) >= 90, AE to AU must be empty except for GRAY_COLUMNS.
-    AV (Comentarios del auditor) is explicitly allowed to have data."""
+    """When AC (avance al corte) >= 90, AV (Comentarios del auditor) MUST have a comment.
+    The previous requirement for AE-AU to be empty is removed per user request."""
     avance_corte = _num(row, "Porcentaje avance al corte")
     if np.isnan(avance_corte) or avance_corte < 90:
         return []
 
-    # Map AE to AU column names
-    # AE: Periodo seguimiento
-    # AF: Nombre Auditor (quien realiza seguimiento)
-    # AG: Fecha de seguimiento por parte del auditor externo
-    # AH: Evidencia de Seguimiento
-    # AI: Pertinencia
-    # AJ: Cantidad de Soportes cargados por la Dependencia
-    # AK: Suficiencia de Soportes
-    # AL: No. de entregables asociados a la Actividad
-    # AM: Cantidad entregables presentados
-    # AN: Tipo de Error
-    # AO: Identificación de posibles errores (Cualitativo)
-    # AP: No. De entregables pendientes (GREY)
-    # AQ: Porcentaje de avance de los entregables (GREY)
-    # AR: Calificación Parcial (GREY)
-    # AS: Oportunidad (GREY)
-    # AT: Porcentaje avance periodo evaluado (GREY)
-    # AU: Enlace evidencia del seguimiento
+    errors = []
     
-    range_cols = [
+    # AV: Comentarios del auditor (MUST have a comment if AC >= 90)
+    av_col = "Comentarios del auditor"
+    av_val = _val(row, av_col)
+    if not av_val or av_val.lower() in ("nan", "none", ""):
+        errors.append(ValidationResult(
+            False, "Falta comentario",
+            f"Avance al corte (AC={avance_corte}%) >= 90%, por lo tanto la columna '{av_col}' debe contener el comentario final del auditor, incluyendo las palabras 'completada', 'cumplida' o 'cumplió'."
+        ))
+    else:
+        # C28 style: check for keywords "completada", "cumplida" or "cumplió"
+        comment_low = av_val.lower()
+        if not any(kw in comment_low for kw in ["completada", "cumplida", "cumplió"]):
+            errors.append(ValidationResult(
+                False, "Coherencia de comentario",
+                f"Avance al corte (AC={avance_corte}%) >= 90%, el comentario en '{av_col}' debe incluir 'completada', 'cumplida' o 'cumplió'."
+            ))
+    
+    return errors
+def rule_2026_empty_followup(row: pd.Series, df: pd.DataFrame) -> List[ValidationResult]:
+    """If ID contains '2026', columns AD to AV must be empty (except grey)."""
+    id_val = _val(row, "ID") or _val(row, "ID Actividad")
+    if "2026" not in id_val:
+        return []
+
+    # Columns AD through AV (roughly) that must be empty
+    cols_to_check = [
+        "¿El Auditor debe hacer Seguimiento en este Periodo?",
         "Periodo seguimiento",
-        "Nombre Auditor (quien realiza seguimiento)",
-        "Fecha de seguimiento por parte del auditor externo",
+        "Nombre Auditor\n(quien realiza seguimiento)",
+        "Fecha de seguimiento por parte del auditor",
         "Evidencia de Seguimiento",
         "Pertinencia",
         "Cantidad de Soportes cargados por la Dependencia",
@@ -231,40 +240,19 @@ def rule_progress_90_empty_ranges(row: pd.Series, df: pd.DataFrame) -> List[Vali
         "Cantidad entregables presentados",
         "Tipo de Error",
         "Identificación de posibles errores (Cualitativo)",
-        "No. De entregables pendientes",
-        "Porcentaje de avance de los entregables",
-        "Calificación Parcial",
-        "Oportunidad",
-        "Porcentaje avance periodo evaluado",
-        "Enlace evidencia del seguimiento"
+        "Enlace evidencia del seguimiento",
+        "Comentarios del auditor"
     ]
 
     errors = []
-    for col in range_cols:
-        # If the column name is NOT in GRAY_COLUMNS (it's a 'white' column that must be empty)
-        if col not in GRAY_COLUMNS:
+    for col in cols_to_check:
+        if col in row.index and col not in GRAY_COLUMNS:
             val = _val(row, col)
-            if val and val.lower() not in ("nan", "none", ""):
+            if val and val.lower() not in ("nan", "none", "", "0", "0%"):
                 errors.append(ValidationResult(
-                    False, "Inconsistencia en actividad terminada",
-                    f"Avance al corte (AC={avance_corte}%) >= 90%, pero la columna '{col}' no está vacía (contiene: {_display(val)})"
+                    False, 
+                    "Activación futura", 
+                    f"ID contiene '2026', la columna '{col}' debe estar vacía (contiene: {_display(val)})"
                 ))
     
-    # AV: Comentarios del auditor (MUST have a comment if AC >= 90)
-    av_col = "Comentarios del auditor"
-    av_val = _val(row, av_col)
-    if not av_val or av_val.lower() in ("nan", "none", ""):
-        errors.append(ValidationResult(
-            False, "Falta comentario",
-            f"Avance al corte (AC={avance_corte}%) >= 90%, por lo tanto la columna '{av_col}' debe contener el comentario final del auditor."
-        ))
-    else:
-        # C28 style: check for keywords "completada" or "cumplida"
-        comment_low = av_val.lower()
-        if "completada" not in comment_low and "cumplida" not in comment_low:
-            errors.append(ValidationResult(
-                False, "Coherencia de comentario",
-                f"Avance al corte (AC={avance_corte}%) >= 90%, el comentario en '{av_col}' debe incluir 'completada' o 'cumplida."
-            ))
-
     return errors
