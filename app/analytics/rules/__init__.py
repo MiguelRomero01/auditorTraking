@@ -19,6 +19,7 @@ from .logic import (
     rule_progress_90_empty_ranges,
     rule_supply_no_requires_zero_values,
     rule_2026_empty_followup,
+    rule_al_zero_requires_as_no_aplica,
 )
 # C28: rule_comment_coherence — AV must contain value from AR
 from .coherence import rule_comment_coherence
@@ -43,4 +44,5 @@ ALL_RULES = [
     rule_supply_no_requires_zero_values, # C29: AH=NO -> AJ=0, AL=0
     rule_comment_coherence,       # C28: AV must contain value from AR
     rule_2026_empty_followup,     # ID 2026 -> AD to AV empty
+    rule_al_zero_requires_as_no_aplica,
 ]

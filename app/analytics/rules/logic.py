@@ -256,3 +256,29 @@ def rule_2026_empty_followup(row: pd.Series, df: pd.DataFrame) -> List[Validatio
                 ))
     
     return errors
+
+
+def rule_al_zero_requires_as_no_aplica(row: pd.Series, df: pd.DataFrame) -> List[ValidationResult]:
+    """If AL (No. de entregables) = 0, then AS (Oportunidad) must be 'No aplica'."""
+    entregables = _num(row, "No. de entregables asociados a la Actividad")
+    
+    # Check if AL is exactly 0.
+    if np.isnan(entregables) or entregables != 0:
+        return []
+        
+    # AS: Fecha de Elaboración o Formalización del Entregable evaluado Oportunidad
+    col_as = "Fecha de Elaboración o Formalización del Entregable evaluado Oportunidad"
+    val_as = _val(row, col_as)
+    
+    # Fallback to "Oportunidad" if the long name is missing
+    if not val_as and "Oportunidad" in row.index:
+        val_as = _val(row, "Oportunidad")
+        col_as = "Oportunidad"
+
+    if "NO APLICA" not in val_as.upper():
+         return [ValidationResult(
+            False, "Error en Fecha Oportunidad",
+            f"No. de entregables asociados (AL) es cero, por lo tanto '{col_as}' (AS) debe decir 'No aplica' (dice: '{_display(val_as)}')"
+        )]
+
+    return []
