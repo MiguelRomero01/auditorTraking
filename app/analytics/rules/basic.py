@@ -96,7 +96,8 @@ def rule_month_name(row: pd.Series, df: pd.DataFrame) -> List[ValidationResult]:
     return []
 
 def rule_auditor_initials(row: pd.Series, df: pd.DataFrame) -> List[ValidationResult]:
-    """Rule 5: Auditor name (AF) must match the initials indicated in the sheet title."""
+    """Rule 5: Auditor name (AF) must match the initials indicated in the sheet title.
+    Exception: In SKQR sheet, initials can be SKQR, CAMV, or YSGF."""
     sheet_title = _val(row, "Auditor_Sheet")
     if sheet_title == "ARS" or not sheet_title:
         return []
@@ -117,11 +118,20 @@ def rule_auditor_initials(row: pd.Series, df: pd.DataFrame) -> List[ValidationRe
         return []
         
     # Check if value matches the sheet title (initials)
-    if val.upper() != sheet_title.upper():
-        return [ValidationResult(
-            False, 
-            "Error en Nombre", 
-            f"El nombre en AF ({_display(val)}) no coincide con las iniciales del auditor ({sheet_title})")]
+    # Exception for SKQR: can be SKQR, CAMV, or YSGF
+    valid_skqr = ["SKQR", "CAMV", "YSGF"]
+    if sheet_title.upper() == "SKQR":
+        if val.upper() not in valid_skqr:
+            return [ValidationResult(
+                False, 
+                "Error en Nombre", 
+                f"Para la pestaña SKQR, el nombre en AF ({_display(val)}) debe ser uno de: {', '.join(valid_skqr)}")]
+    else:
+        if val.upper() != sheet_title.upper():
+            return [ValidationResult(
+                False, 
+                "Error en Nombre", 
+                f"El nombre en AF ({_display(val)}) no coincide con las iniciales del auditor ({sheet_title})")]
 
     if not re.match(r"^[A-Z]{2,5}$", val):
         return [ValidationResult(False, "Error en Nombre", f"Formato de iniciales inválido: '{_display(val)}'")]

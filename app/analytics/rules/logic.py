@@ -282,3 +282,19 @@ def rule_al_zero_requires_as_no_aplica(row: pd.Series, df: pd.DataFrame) -> List
         )]
 
     return []
+
+
+def rule_progress_eval_vs_corte(row: pd.Series, df: pd.DataFrame) -> List[ValidationResult]:
+    """New Rule: When AC (Porcentaje avance al corte) > 0%, 
+    AW (Porcentaje avance periodo evaluado) cannot be less than AC."""
+    ac = _num(row, "Porcentaje avance al corte")
+    aw = _num(row, "Porcentaje avance periodo evaluado")
+    
+    if not np.isnan(ac) and ac > 0:
+        if not np.isnan(aw) and aw < ac:
+            return [ValidationResult(
+                False, "Error en avance",
+                f"Avance periodo evaluado (AW={aw}%) no puede ser inferior al avance al corte (AC={ac}%)"
+            )]
+    return []
+
